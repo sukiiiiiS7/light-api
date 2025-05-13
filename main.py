@@ -1,18 +1,27 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from datetime import datetime
 import json
+import os
 
 app = FastAPI()
 
-# Local file to store lux readings
 DATA_FILE = "lux_records.json"
 
-# Ensure file exists
-try:
-    with open(DATA_FILE, "x") as f:
+# Create file if it doesn't exist
+if not os.path.exists(DATA_FILE):
+    with open(DATA_FILE, "w") as f:
         json.dump([], f)
-except FileExistsError:
-    pass
+
+@app.get("/")
+def root():
+    return {
+        "message": "🌞 Light API is running.",
+        "endpoints": [
+            "/lux (POST) - Send lux value",
+            "/lux (GET) - Get all recorded lux values"
+        ]
+    }
 
 @app.post("/lux")
 async def receive_lux(request: Request):
@@ -20,19 +29,29 @@ async def receive_lux(request: Request):
     lux = data.get("lux")
 
     if lux is None:
-        return {"status": "error", "msg": "Missing 'lux'"}
+        return {"status": "error", "message": "Missing 'lux' field"}
 
-    # Record with timestamp
     record = {
         "lux": lux,
         "timestamp": datetime.utcnow().isoformat()
     }
 
-    # Append to file
     with open(DATA_FILE, "r+") as f:
-        records = json.load(f)
+        try:
+            records = json.load(f)
+        except json.JSONDecodeError:
+            records = []
         records.append(record)
         f.seek(0)
         json.dump(records, f, indent=2)
 
-    return {"status": "ok", "received": record}
+    return {"status": "success", "received": record}
+
+@app.get("/lux")
+def get_lux_records():
+    try:
+        with open(DATA_FILE, "r") as f:
+            data = json.load(f)
+        return JSONResponse(content=data)
+    except Exception as e:
+        return {"error": str(e)}
