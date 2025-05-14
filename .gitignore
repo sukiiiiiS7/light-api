@@ -1,0 +1,10 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Don't upload environment configs
+.env
+
+# Ignore system files (Windows/macOS)
+.DS_Store
+Thumbs.db

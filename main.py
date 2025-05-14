@@ -1,25 +1,28 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from datetime import datetime
-import json
+from pymongo import MongoClient
+from dotenv import load_dotenv
 import os
 
 app = FastAPI()
 
-DATA_FILE = "lux_records.json"
+# Load environment variables from .env file
+load_dotenv()   
+MONGO_URI = os.getenv("MONGO_URI")
 
-# Create file if it doesn't exist
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w") as f:
-        json.dump([], f)
+# Connect to MongoDB Atlas database
+client = MongoClient(MONGO_URI)
+db = client["plant_data"]  # Database name
+db_collection = db["light_data"]  # Collection name for light data
 
 @app.get("/")
 def root():
     return {
-        "message": "🌞 Light API is running.",
+        "message": "🌞 Light API with MongoDB is running.",
         "endpoints": [
             "/lux (POST) - Send lux value",
-            "/lux (GET) - Get all recorded lux values"
+            "/lux (GET) - Get all recorded lux values from MongoDB"
         ]
     }
 
@@ -28,30 +31,26 @@ async def receive_lux(request: Request):
     data = await request.json()
     lux = data.get("lux")
 
+    # Check if lux value is provided
     if lux is None:
         return {"status": "error", "message": "Missing 'lux' field"}
 
+    # Create a record with lux value and timestamp
     record = {
         "lux": lux,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow()  # Store UTC timestamp for consistency
     }
 
-    with open(DATA_FILE, "r+") as f:
-        try:
-            records = json.load(f)
-        except json.JSONDecodeError:
-            records = []
-        records.append(record)
-        f.seek(0)
-        json.dump(records, f, indent=2)
+    # Insert the record into MongoDB collection
+    db_collection.insert_one(record)
 
-    return {"status": "success", "received": record}
+    return {"status": "success", "saved": record}
 
 @app.get("/lux")
 def get_lux_records():
     try:
-        with open(DATA_FILE, "r") as f:
-            data = json.load(f)
-        return JSONResponse(content=data)
+        # Retrieve all records and exclude MongoDB's internal _id field
+        records = list(db_collection.find({}, {"_id": 0}))
+        return JSONResponse(content=records)
     except Exception as e:
         return {"error": str(e)}
