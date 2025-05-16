@@ -55,8 +55,14 @@ async def receive_lux(request: Request):
 @app.get("/lux")
 def get_lux_records():
     try:
-        # Retrieve all records and exclude MongoDB's internal _id field
         records = list(db_collection.find({}, {"_id": 0}))
+
+        for record in records:
+            if isinstance(record.get("timestamp"), datetime):
+                record["timestamp"] = record["timestamp"].isoformat()
+
         return JSONResponse(content=records)
+
     except Exception as e:
         return {"error": str(e)}
+
