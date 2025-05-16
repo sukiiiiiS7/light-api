@@ -31,20 +31,26 @@ async def receive_lux(request: Request):
     data = await request.json()
     lux = data.get("lux")
 
-    # Check if lux value is provided
     if lux is None:
         return {"status": "error", "message": "Missing 'lux' field"}
 
-    # Create a record with lux value and timestamp
-    record = {
+    timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
+
+    # Save to MongoDB
+    db_collection.insert_one({
         "lux": lux,
-        "timestamp": datetime.utcnow()  # Store UTC timestamp for consistency
+        "timestamp": timestamp
+    })
+
+    # Return only serializable data
+    return {
+        "status": "success",
+        "saved": {
+            "lux": lux,
+            "timestamp": timestamp
+        }
     }
 
-    # Insert the record into MongoDB collection
-    db_collection.insert_one(record)
-
-    return {"status": "success", "saved": record}
 
 @app.get("/lux")
 def get_lux_records():
